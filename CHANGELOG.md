@@ -1,4 +1,4 @@
-## 6.1.0
+## 6.2.0
 * fix: unable to input text on windows desktop by @imaachman in https://github.com/AppFlowy-IO/appflowy-editor/pull/1126
 * feat: open html decoder for custom parser by @richardshiue in https://github.com/AppFlowy-IO/appflowy-editor/pull/1145
 * fix: paste issue from ChatGPT by @LucasXu0 in https://github.com/AppFlowy-IO/appflowy-editor/pull/1146

@@ -18,6 +18,20 @@ Future<void> onReplace(
   }
 
   if (selection.isSingle) {
+    final node = editorState.getNodeAtPath(selection.start.path);
+    final delta = node?.delta;
+    final start = replacement.replacedRange.start;
+    final length = replacement.replacedRange.end - start;
+    if (node == null ||
+        delta == null ||
+        start < 0 ||
+        length < 0 ||
+        start + length > delta.length) {
+      // The platform can send a delta calculated from text that is older than
+      // the current document. Ignore it without rejecting the platform state.
+      return;
+    }
+
     final execution = await executeCharacterShortcutEvent(
       editorState,
       replacement.replacementText,
@@ -42,10 +56,7 @@ Future<void> onReplace(
       }
     }
 
-    final node = editorState.getNodesInSelection(selection).first;
     final transaction = editorState.transaction;
-    final start = replacement.replacedRange.start;
-    final length = replacement.replacedRange.end - start;
     final afterSelection = Selection(
       start: Position(
         path: node.path,

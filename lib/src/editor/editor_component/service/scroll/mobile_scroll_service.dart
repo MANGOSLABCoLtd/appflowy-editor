@@ -96,6 +96,10 @@ class _MobileScrollServiceState extends State<MobileScrollService>
     AxisDirection? direction,
     Duration? duration,
   }) {
+    if (editorState.disableAutoScroll) {
+      return;
+    }
+
     autoScroller?.startAutoScroll(
       offset,
       edgeOffset: edgeOffset,
@@ -106,6 +110,10 @@ class _MobileScrollServiceState extends State<MobileScrollService>
 
   @override
   void stopAutoScroll() {
+    if (editorState.disableAutoScroll) {
+      return;
+    }
+
     autoScroller?.stopAutoScroll();
   }
 

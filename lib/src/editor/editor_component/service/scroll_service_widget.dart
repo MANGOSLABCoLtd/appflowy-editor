@@ -85,7 +85,8 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
   void _onSelectionChanged() {
     // should auto scroll after the cursor or selection updated.
     final selection = editorState.selection;
-    if (selection == null ||
+    if (editorState.disableAutoScroll ||
+        selection == null ||
         [SelectionUpdateReason.selectAll]
             .contains(editorState.selectionUpdateReason)) {
       return;
@@ -227,6 +228,10 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
     AxisDirection? direction,
     Duration? duration,
   }) {
+    if (editorState.disableAutoScroll) {
+      return;
+    }
+
     forward.startAutoScroll(
       offset,
       edgeOffset: edgeOffset,
@@ -236,7 +241,13 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
   }
 
   @override
-  void stopAutoScroll() => forward.stopAutoScroll();
+  void stopAutoScroll() {
+    if (editorState.disableAutoScroll) {
+      return;
+    }
+
+    forward.stopAutoScroll();
+  }
 
   @override
   void goBallistic(double velocity) => forward.goBallistic(velocity);

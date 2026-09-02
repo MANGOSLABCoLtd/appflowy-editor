@@ -151,12 +151,12 @@ class EdgeDraggingAutoScroller {
     double minimumAutoScrollDelta = 1.0,
     double maxAutoScrollDelta = 20.0,
     Duration? animationDuration,
-  })  : assert(minimumAutoScrollDelta >= 0),
-        assert(maxAutoScrollDelta >= minimumAutoScrollDelta),
-        _minimumAutoScrollDelta = minimumAutoScrollDelta,
-        _maxAutoScrollDelta = maxAutoScrollDelta,
-        _animationDuration =
-            animationDuration ?? const Duration(milliseconds: 5);
+  }) : assert(minimumAutoScrollDelta >= 0),
+       assert(maxAutoScrollDelta >= minimumAutoScrollDelta),
+       _minimumAutoScrollDelta = minimumAutoScrollDelta,
+       _maxAutoScrollDelta = maxAutoScrollDelta,
+       _animationDuration =
+           animationDuration ?? const Duration(milliseconds: 5);
 
   /// The [Scrollable] this auto scroller is scrolling.
   final ScrollableState scrollable;
@@ -192,6 +192,10 @@ class EdgeDraggingAutoScroller {
   /// Whether the auto scroll is in progress.
   bool get scrolling => _scrolling;
   bool _scrolling = false;
+  bool _frameCallbackScheduled = false;
+  int _scrollGeneration = 0;
+  int _frameCount = 0;
+  static const int _maxFramesPerGeneration = 120;
 
   double _offsetExtent(Offset offset, Axis scrollDirection) {
     return switch (scrollDirection) {
@@ -219,26 +223,54 @@ class EdgeDraggingAutoScroller {
   /// previous dragTarget to the new value and continues scrolling if necessary.
   void startAutoScrollIfNecessary(Rect dragTarget, {Duration? duration}) {
     final Offset deltaToOrigin = scrollable.deltaToScrollOrigin;
-    _dragTargetRelatedToScrollOrigin =
-        dragTarget.translate(deltaToOrigin.dx, deltaToOrigin.dy);
+    _dragTargetRelatedToScrollOrigin = dragTarget.translate(
+      deltaToOrigin.dx,
+      deltaToOrigin.dy,
+    );
     _currentDuration = duration;
     if (_scrolling) {
       // The change will be picked up in the next scroll.
       return;
     }
     assert(!_scrolling);
-    _scroll();
+    _previousScrollDelta = null;
+    _scrolling = true;
+    _frameCount = 0;
+    _scrollGeneration++;
+    _scheduleScrollFrame(_scrollGeneration);
   }
 
   /// Stop any ongoing auto scrolling.
   void stopAutoScroll() {
     _scrolling = false;
+    _scrollGeneration++;
+    _frameCallbackScheduled = false;
+    _frameCount = 0;
     _previousScrollDelta = null;
     _currentDuration = null;
   }
 
-  Future<void> _scroll() async {
+  void _scheduleScrollFrame(int generation) {
+    if (!_scrolling ||
+        generation != _scrollGeneration ||
+        _frameCallbackScheduled) {
+      return;
+    }
+    _frameCallbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _frameCallbackScheduled = false;
+      if (!_scrolling || generation != _scrollGeneration) {
+        return;
+      }
+      _scroll(generation);
+    });
+  }
+
+  Future<void> _scroll(int generation) async {
     try {
+      if (!_scrolling || generation != _scrollGeneration) {
+        return;
+      }
       final RenderBox scrollRenderBox =
           scrollable.context.findRenderObject()! as RenderBox;
       final Matrix4 transform = scrollRenderBox.getTransformTo(null);
@@ -263,15 +295,18 @@ class EdgeDraggingAutoScroller {
         // do nothing.
       }
 
-      _scrolling = true;
       double? newOffset;
       const double overDragMax = 20.0;
 
       final Offset deltaToOrigin = scrollable.deltaToScrollOrigin;
-      final Offset viewportOrigin =
-          globalRect.topLeft.translate(deltaToOrigin.dx, deltaToOrigin.dy);
-      final double viewportStart =
-          _offsetExtent(viewportOrigin, _scrollDirection);
+      final Offset viewportOrigin = globalRect.topLeft.translate(
+        deltaToOrigin.dx,
+        deltaToOrigin.dy,
+      );
+      final double viewportStart = _offsetExtent(
+        viewportOrigin,
+        _scrollDirection,
+      );
       final double viewportEnd =
           viewportStart + _sizeExtent(globalRect.size, _scrollDirection);
 
@@ -289,8 +324,10 @@ class EdgeDraggingAutoScroller {
           if (proxyEnd > viewportEnd &&
               scrollable.position.pixels >
                   scrollable.position.minScrollExtent) {
-            final double overDrag =
-                math.min(proxyEnd - viewportEnd, overDragMax);
+            final double overDrag = math.min(
+              proxyEnd - viewportEnd,
+              overDragMax,
+            );
             final double delta = _smoothScrollDelta(overDrag);
             newOffset = math.max(
               scrollable.position.minScrollExtent,
@@ -299,8 +336,10 @@ class EdgeDraggingAutoScroller {
           } else if (proxyStart < viewportStart &&
               scrollable.position.pixels <
                   scrollable.position.maxScrollExtent) {
-            final double overDrag =
-                math.min(viewportStart - proxyStart, overDragMax);
+            final double overDrag = math.min(
+              viewportStart - proxyStart,
+              overDragMax,
+            );
             final double delta = _smoothScrollDelta(overDrag);
             newOffset = math.min(
               scrollable.position.maxScrollExtent,
@@ -313,8 +352,10 @@ class EdgeDraggingAutoScroller {
           if (proxyStart < viewportStart &&
               scrollable.position.pixels >
                   scrollable.position.minScrollExtent) {
-            final double overDrag =
-                math.min(viewportStart - proxyStart, overDragMax);
+            final double overDrag = math.min(
+              viewportStart - proxyStart,
+              overDragMax,
+            );
             final double delta = _smoothScrollDelta(overDrag);
             newOffset = math.max(
               scrollable.position.minScrollExtent,
@@ -323,8 +364,10 @@ class EdgeDraggingAutoScroller {
           } else if (proxyEnd > viewportEnd &&
               scrollable.position.pixels <
                   scrollable.position.maxScrollExtent) {
-            final double overDrag =
-                math.min(proxyEnd - viewportEnd, overDragMax);
+            final double overDrag = math.min(
+              proxyEnd - viewportEnd,
+              overDragMax,
+            );
             final double delta = _smoothScrollDelta(overDrag);
             newOffset = math.min(
               scrollable.position.maxScrollExtent,
@@ -337,21 +380,21 @@ class EdgeDraggingAutoScroller {
       final double currentPixels = scrollable.position.pixels;
       if (newOffset == null) {
         // Drag should not trigger scroll.
-        _scrolling = false;
+        stopAutoScroll();
         return;
       }
       double delta = newOffset - currentPixels;
       if (delta.abs() < _minimumAutoScrollDelta) {
         if (delta.abs() <= precisionErrorTolerance) {
-          _scrolling = false;
+          stopAutoScroll();
           return;
         }
         final double direction = delta.sign;
         final double target =
             (currentPixels + direction * _minimumAutoScrollDelta).clamp(
-          scrollable.position.minScrollExtent,
-          scrollable.position.maxScrollExtent,
-        );
+              scrollable.position.minScrollExtent,
+              scrollable.position.maxScrollExtent,
+            );
         newOffset = target.toDouble();
         delta = newOffset - currentPixels;
         if (delta.abs() <= precisionErrorTolerance) {
@@ -365,14 +408,21 @@ class EdgeDraggingAutoScroller {
         curve: Curves.linear,
         // clamp: true,
       );
-      onScrollViewScrolled?.call();
-      if (_scrolling) {
-        await _scroll();
+      if (!_scrolling || generation != _scrollGeneration) {
+        return;
       }
+      onScrollViewScrolled?.call();
+      _frameCount++;
+      if (_frameCount >= _maxFramesPerGeneration) {
+        stopAutoScroll();
+        return;
+      }
+      _scheduleScrollFrame(generation);
     } catch (e) {
       debugPrint(e.toString());
-    } finally {
-      _scrolling = false;
+      if (generation == _scrollGeneration) {
+        stopAutoScroll();
+      }
     }
   }
 
@@ -389,8 +439,11 @@ class EdgeDraggingAutoScroller {
       _previousScrollDelta = clampedDelta;
       return clampedDelta;
     }
-    final double smoothed =
-        lerpDouble(_previousScrollDelta!, clampedDelta, 0.35)!;
+    final double smoothed = lerpDouble(
+      _previousScrollDelta!,
+      clampedDelta,
+      0.35,
+    )!;
     _previousScrollDelta = smoothed;
     return smoothed;
   }
@@ -539,8 +592,10 @@ class ScrollAction extends ContextAction<ScrollIntent> {
   ) {
     if (axisDirectionToAxis(intent.direction) ==
         axisDirectionToAxis(state.axisDirection)) {
-      final double increment =
-          _calculateScrollIncrement(state, type: intent.type);
+      final double increment = _calculateScrollIncrement(
+        state,
+        type: intent.type,
+      );
       return intent.direction == state.axisDirection ? increment : -increment;
     }
     return 0.0;

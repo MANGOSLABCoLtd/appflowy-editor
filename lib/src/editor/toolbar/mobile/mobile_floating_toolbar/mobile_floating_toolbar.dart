@@ -7,9 +7,7 @@ import 'package:flutter/material.dart';
 const selectionExtraInfoDisableFloatingToolbar = 'disableFloatingToolbar';
 
 class MobileFloatingToolbarItem {
-  const MobileFloatingToolbarItem({
-    required this.builder,
-  });
+  const MobileFloatingToolbarItem({required this.builder});
 
   final WidgetBuilder builder;
 }
@@ -36,7 +34,8 @@ class MobileFloatingToolbar extends StatefulWidget {
     BuildContext context,
     Offset anchor,
     VoidCallback closeToolbar,
-  ) toolbarBuilder;
+  )
+  toolbarBuilder;
 
   @override
   State<MobileFloatingToolbar> createState() => _MobileFloatingToolbarState();
@@ -66,10 +65,10 @@ class _MobileFloatingToolbarState extends State<MobileFloatingToolbar>
     widget.editorScrollController.offsetNotifier.addListener(
       _onScrollPositionChanged,
     );
-    _onTapSelectionAreaSubscription =
-        appFlowyEditorOnTapSelectionArea.stream.listen((event) {
-      _isToolbarVisible ? _clear() : _showAfterDelay();
-    });
+    _onTapSelectionAreaSubscription = appFlowyEditorOnTapSelectionArea.stream
+        .listen((event) {
+          _isToolbarVisible ? _clear() : _showAfterDelay();
+        });
   }
 
   @override
@@ -126,19 +125,15 @@ class _MobileFloatingToolbarState extends State<MobileFloatingToolbar>
         _clear();
       } else if (prevSelection == selection &&
           editorState.selectionUpdateReason == SelectionUpdateReason.uiEvent &&
-          editorState.selectionExtraInfo?[
-                  selectionExtraInfoDisableFloatingToolbar] !=
+          editorState
+                  .selectionExtraInfo?[selectionExtraInfoDisableFloatingToolbar] !=
               true) {
         _showAfterDelay();
       }
       prevSelection = selection;
     } else {
       _clear();
-      final dragMode = editorState.selectionExtraInfo?[selectionDragModeKey];
-      if ([
-        MobileSelectionDragMode.leftSelectionHandle,
-        MobileSelectionDragMode.rightSelectionHandle,
-      ].contains(dragMode)) {
+      if (editorState.isDraggingSelectionHandle) {
         return;
       }
 
@@ -173,14 +168,10 @@ class _MobileFloatingToolbarState extends State<MobileFloatingToolbar>
 
   void _showAfterDelay([Duration duration = Duration.zero]) {
     // uses debounce to avoid the computing the rects too frequently.
-    Debounce.debounce(
-      _debounceKey,
-      duration,
-      () {
-        _clear(); // clear the previous toolbar.
-        _showToolbar();
-      },
-    );
+    Debounce.debounce(_debounceKey, duration, () {
+      _clear(); // clear the previous toolbar.
+      _showToolbar();
+    });
   }
 
   void _showToolbar() {
@@ -195,25 +186,15 @@ class _MobileFloatingToolbarState extends State<MobileFloatingToolbar>
     }
     _toolbarContainer = OverlayEntry(
       builder: (context) {
-        return _buildToolbar(
-          context,
-          rect.topCenter,
-        );
+        return _buildToolbar(context, rect.topCenter);
       },
     );
     Overlay.of(context, rootOverlay: true).insert(_toolbarContainer!);
     _isToolbarVisible = true;
   }
 
-  Widget _buildToolbar(
-    BuildContext context,
-    Offset offset,
-  ) {
-    return widget.toolbarBuilder(
-      context,
-      offset,
-      _clear,
-    );
+  Widget _buildToolbar(BuildContext context, Offset offset) {
+    return widget.toolbarBuilder(context, offset, _clear);
   }
 
   Rect _findSuitableRect(Iterable<Rect> rects) {

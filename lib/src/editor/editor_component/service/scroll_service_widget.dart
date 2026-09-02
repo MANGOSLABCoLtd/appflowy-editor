@@ -23,8 +23,9 @@ class ScrollServiceWidget extends StatefulWidget {
 
 class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
     implements AppFlowyScrollService {
-  final _forwardKey =
-      GlobalKey(debugLabel: 'forward_to_platform_scroll_service');
+  final _forwardKey = GlobalKey(
+    debugLabel: 'forward_to_platform_scroll_service',
+  );
   late AppFlowyScrollService forward =
       _forwardKey.currentState as AppFlowyScrollService;
 
@@ -64,28 +65,19 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
     );
   }
 
-  Widget _buildDesktopScrollService(
-    BuildContext context,
-  ) {
-    return DesktopScrollService(
-      key: _forwardKey,
-      child: widget.child,
-    );
+  Widget _buildDesktopScrollService(BuildContext context) {
+    return DesktopScrollService(key: _forwardKey, child: widget.child);
   }
 
-  Widget _buildMobileScrollService(
-    BuildContext context,
-  ) {
-    return MobileScrollService(
-      key: _forwardKey,
-      child: widget.child,
-    );
+  Widget _buildMobileScrollService(BuildContext context) {
+    return MobileScrollService(key: _forwardKey, child: widget.child);
   }
 
   void _onSelectionChanged() {
     // should auto scroll after the cursor or selection updated.
     final selection = editorState.selection;
     if (editorState.disableAutoScroll ||
+        editorState.autoScrollPolicy == AutoScrollPolicy.disabled ||
         selection == null ||
         [SelectionUpdateReason.selectAll]
             .contains(editorState.selectionUpdateReason)) {
@@ -100,8 +92,13 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
 
       Rect targetRect;
       AxisDirection? direction;
-      final dynamic dragMode =
-          editorState.selectionExtraInfo?['selection_drag_mode'];
+      final dragMode = editorState.mobileSelectionDragMode;
+
+      if (PlatformExtension.isMobile &&
+          editorState.autoScrollPolicy == AutoScrollPolicy.handleDragOnly &&
+          !editorState.isDraggingMobileHandle) {
+        return;
+      }
 
       // For desktop: if auto-scroller is already scrolling (from drag-to-select),
       // don't override it here. The desktop_selection_service handles drag scrolling.
@@ -110,12 +107,12 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
         return;
       }
 
-      switch (dragMode?.toString()) {
-        case 'MobileSelectionDragMode.leftSelectionHandle':
+      switch (dragMode) {
+        case MobileSelectionDragMode.leftSelectionHandle:
           targetRect = selectionRects.first;
           direction = AxisDirection.up;
           break;
-        case 'MobileSelectionDragMode.rightSelectionHandle':
+        case MobileSelectionDragMode.rightSelectionHandle:
           targetRect = selectionRects.last;
           direction = AxisDirection.down;
           break;
@@ -124,7 +121,8 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
 
           /// sometimes moving up in a long single node may be not working
           /// so we need to special handle this case.
-          final isInSingleNode = (lastSelection?.isSingle ?? false) &&
+          final isInSingleNode =
+              (lastSelection?.isSingle ?? false) &&
               lastSelection?.start.path == selection.start.path;
           if (selection.isForward && isInSingleNode) {
             targetRect = selectionRects.first;
@@ -137,15 +135,12 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
 
       if (PlatformExtension.isMobile) {
         // Determine if this is a drag operation
-        final bool isDragOperation = dragMode != null &&
-            (dragMode.toString() ==
-                    'MobileSelectionDragMode.leftSelectionHandle' ||
-                dragMode.toString() ==
-                    'MobileSelectionDragMode.rightSelectionHandle');
+        final bool isDragOperation = editorState.isDraggingMobileHandle;
 
         // Use animation for drag operations, instant for others
-        final scrollDuration =
-            isDragOperation ? const Duration(milliseconds: 2) : Duration.zero;
+        final scrollDuration = isDragOperation
+            ? const Duration(milliseconds: 2)
+            : Duration.zero;
 
         // soft keyboard
         // workaround: wait for the soft keyboard to show up
@@ -154,7 +149,13 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
             : Duration.zero;
 
         Future.delayed(keyboardDelay, () {
-          if (_forwardKey.currentContext == null) {
+          if (!mounted ||
+              _forwardKey.currentContext == null ||
+              editorState.disableAutoScroll ||
+              editorState.autoScrollPolicy == AutoScrollPolicy.disabled ||
+              (editorState.autoScrollPolicy ==
+                      AutoScrollPolicy.handleDragOnly &&
+                  !editorState.isDraggingMobileHandle)) {
             return;
           }
           // Mobile needs to continuously update scroll position/direction during drag
@@ -205,8 +206,7 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
   void scrollTo(
     double dy, {
     Duration duration = const Duration(milliseconds: 150),
-  }) =>
-      forward.scrollTo(dy, duration: duration);
+  }) => forward.scrollTo(dy, duration: duration);
 
   @override
   void jumpTo(int index) => forward.jumpTo(index);
@@ -228,7 +228,8 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
     AxisDirection? direction,
     Duration? duration,
   }) {
-    if (editorState.disableAutoScroll) {
+    if (editorState.disableAutoScroll ||
+        editorState.autoScrollPolicy == AutoScrollPolicy.disabled) {
       return;
     }
 
@@ -242,10 +243,6 @@ class _ScrollServiceWidgetState extends State<ScrollServiceWidget>
 
   @override
   void stopAutoScroll() {
-    if (editorState.disableAutoScroll) {
-      return;
-    }
-
     forward.stopAutoScroll();
   }
 

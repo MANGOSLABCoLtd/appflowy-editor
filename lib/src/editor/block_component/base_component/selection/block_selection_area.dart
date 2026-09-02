@@ -1,6 +1,5 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/base_component/selection/selection_area_painter.dart';
-import 'package:appflowy_editor/src/editor/editor_component/service/selection/mobile_selection_service.dart';
 import 'package:appflowy_editor/src/render/selection/cursor.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -9,11 +8,7 @@ import 'package:provider/provider.dart';
 
 final _deepEqual = const DeepCollectionEquality().equals;
 
-enum BlockSelectionType {
-  cursor,
-  selection,
-  block,
-}
+enum BlockSelectionType { cursor, selection, block }
 
 /// [BlockSelectionArea] is a widget that renders the selection area or the cursor of a block.
 class BlockSelectionArea extends StatefulWidget {
@@ -132,10 +127,9 @@ class _BlockSelectionAreaState extends State<BlockSelectionArea> {
             return sizedBox;
           }
           final editorState = context.read<EditorState>();
-          final dragMode =
-              editorState.selectionExtraInfo?[selectionDragModeKey];
-          final shouldBlink = widget.delegate.shouldCursorBlink &&
-              dragMode != MobileSelectionDragMode.cursor;
+          final shouldBlink =
+              widget.delegate.shouldCursorBlink &&
+              !editorState.isDraggingCursorHandle;
           final cursor = Cursor(
             key: cursorKey,
             rect: prevCursorRect!,

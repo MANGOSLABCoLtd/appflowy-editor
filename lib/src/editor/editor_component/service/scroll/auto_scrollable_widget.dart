@@ -4,8 +4,6 @@ import 'package:appflowy_editor/src/editor/util/platform_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-const _selectionDragModeKey = 'selection_drag_mode';
-
 class AutoScrollableWidget extends StatefulWidget {
   const AutoScrollableWidget({
     super.key,
@@ -16,10 +14,8 @@ class AutoScrollableWidget extends StatefulWidget {
 
   final bool shrinkWrap;
   final ScrollController scrollController;
-  final Widget Function(
-    BuildContext context,
-    AutoScroller autoScroller,
-  ) builder;
+  final Widget Function(BuildContext context, AutoScroller autoScroller)
+  builder;
 
   @override
   State<AutoScrollableWidget> createState() => _AutoScrollableWidgetState();
@@ -48,9 +44,7 @@ class _AutoScrollableWidgetState extends State<AutoScrollableWidget> {
     if (widget.shrinkWrap) {
       return widget.builder(context, _autoScroller);
     } else {
-      return Builder(
-        builder: builder,
-      );
+      return Builder(builder: builder);
     }
   }
 
@@ -66,11 +60,7 @@ class _AutoScrollableWidgetState extends State<AutoScrollableWidget> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               final editorState = context.read<EditorState?>();
-              final dynamic dragMode =
-                  editorState?.selectionExtraInfo?[_selectionDragModeKey];
-              final bool isDraggingSelection = dragMode != null &&
-                  dragMode.toString() != 'MobileSelectionDragMode.none';
-              if (!isDraggingSelection) {
+              if (!(editorState?.isDraggingMobileHandle ?? false)) {
                 return;
               }
               _autoScroller.continueToAutoScroll();

@@ -15,9 +15,7 @@ typedef EditorTransactionValue = (
 );
 
 class EditorStateDebugInfo {
-  EditorStateDebugInfo({
-    this.debugPaintSizeEnabled = false,
-  });
+  EditorStateDebugInfo({this.debugPaintSizeEnabled = false});
 
   /// Enable the debug paint size for selection handle.
   ///
@@ -30,7 +28,8 @@ class EditorStateDebugInfo {
 /// set true to this key to prevent attaching the text service when selection is changed.
 const selectionExtraInfoDoNotAttachTextService =
     'selectionExtraInfoDoNotAttachTextService';
-const _selectionDragModeKey = 'selection_drag_mode';
+
+enum AutoScrollPolicy { all, handleDragOnly, disabled }
 
 class ApplyOptions {
   const ApplyOptions({
@@ -50,10 +49,7 @@ class ApplyOptions {
 }
 
 @Deprecated('use SelectionUpdateReason instead')
-enum CursorUpdateReason {
-  uiEvent,
-  others,
-}
+enum CursorUpdateReason { uiEvent, others }
 
 enum SelectionUpdateReason {
   uiEvent, // like mouse click, keyboard event
@@ -63,15 +59,9 @@ enum SelectionUpdateReason {
   searchHighlight, // Highlighting search results
 }
 
-enum SelectionType {
-  inline,
-  block,
-}
+enum SelectionType { inline, block }
 
-enum TransactionTime {
-  before,
-  after,
-}
+enum TransactionTime { before, after }
 
 /// The state of the editor.
 ///
@@ -101,18 +91,10 @@ class EditorState {
   }
 
   @Deprecated('use EditorState.blank() instead')
-  EditorState.empty()
-      : this(
-          document: Document.blank(),
-        );
+  EditorState.empty() : this(document: Document.blank());
 
-  EditorState.blank({
-    bool withInitialText = true,
-  }) : this(
-          document: Document.blank(
-            withInitialText: withInitialText,
-          ),
-        );
+  EditorState.blank({bool withInitialText = true})
+    : this(document: Document.blank(withInitialText: withInitialText));
 
   final Document document;
 
@@ -131,8 +113,51 @@ class EditorState {
     editableNotifier.value = value;
   }
 
-  /// Whether the editor should disable auto scroll.
-  bool disableAutoScroll = false;
+  /// Whether the editor should disable every auto-scroll source.
+  bool _disableAutoScroll = false;
+
+  bool get disableAutoScroll => _disableAutoScroll;
+
+  set disableAutoScroll(bool value) {
+    if (_disableAutoScroll == value) {
+      return;
+    }
+    _disableAutoScroll = value;
+    if (value) {
+      autoScroller?.stopAutoScroll();
+    }
+  }
+
+  AutoScrollPolicy _autoScrollPolicy = AutoScrollPolicy.all;
+
+  AutoScrollPolicy get autoScrollPolicy => _autoScrollPolicy;
+
+  set autoScrollPolicy(AutoScrollPolicy value) {
+    if (_autoScrollPolicy == value) {
+      return;
+    }
+    _autoScrollPolicy = value;
+    autoScroller?.stopAutoScroll();
+  }
+
+  MobileSelectionDragMode get mobileSelectionDragMode {
+    final value = selectionExtraInfo?[selectionDragModeKey];
+    return value is MobileSelectionDragMode
+        ? value
+        : MobileSelectionDragMode.none;
+  }
+
+  bool get isDraggingMobileHandle =>
+      mobileSelectionDragMode != MobileSelectionDragMode.none;
+
+  bool get isDraggingSelectionHandle => switch (mobileSelectionDragMode) {
+    MobileSelectionDragMode.leftSelectionHandle ||
+    MobileSelectionDragMode.rightSelectionHandle => true,
+    _ => false,
+  };
+
+  bool get isDraggingCursorHandle =>
+      mobileSelectionDragMode == MobileSelectionDragMode.cursor;
 
   /// The edge offset of the auto scroll.
   double autoScrollEdgeOffset = appFlowyEditorAutoScrollEdgeOffset;
@@ -313,8 +338,8 @@ class EditorState {
   }
 
   RenderBox? get renderBox {
-    final renderObject =
-        service.scrollServiceKey.currentContext?.findRenderObject();
+    final renderObject = service.scrollServiceKey.currentContext
+        ?.findRenderObject();
     if (renderObject != null && renderObject is RenderBox) {
       return renderObject;
     }
@@ -489,10 +514,7 @@ class EditorState {
     return [];
   }
 
-  List<Node> getSelectedNodes({
-    Selection? selection,
-    bool withCopy = true,
-  }) {
+  List<Node> getSelectedNodes({Selection? selection, bool withCopy = true}) {
     List<Node> res = [];
     selection ??= this.selection;
     if (selection == null) {
@@ -513,17 +535,15 @@ class EditorState {
     if (res.isNotEmpty) {
       var delta = res.first.delta;
       if (delta != null) {
-        res.first.updateAttributes(
-          {
-            ...res.first.attributes,
-            blockComponentDelta: delta
-                .slice(
-                  selection.startIndex,
-                  selection.isSingle ? selection.endIndex : delta.length,
-                )
-                .toJson(),
-          },
-        );
+        res.first.updateAttributes({
+          ...res.first.attributes,
+          blockComponentDelta: delta
+              .slice(
+                selection.startIndex,
+                selection.isSingle ? selection.endIndex : delta.length,
+              )
+              .toJson(),
+        });
       }
 
       var node = res.last;
@@ -538,27 +558,17 @@ class EditorState {
               attributes: {
                 ...node.attributes,
                 blockComponentDelta: delta
-                    .slice(
-                      0,
-                      selection.endIndex,
-                    )
+                    .slice(0, selection.endIndex)
                     .toJson(),
               },
             ),
           );
           node.unlink();
         } else {
-          node.updateAttributes(
-            {
-              ...node.attributes,
-              blockComponentDelta: delta
-                  .slice(
-                    0,
-                    selection.endIndex,
-                  )
-                  .toJson(),
-            },
-          );
+          node.updateAttributes({
+            ...node.attributes,
+            blockComponentDelta: delta.slice(0, selection.endIndex).toJson(),
+          });
         }
       }
     }
@@ -589,10 +599,7 @@ class EditorState {
         );
         if (rect != null) {
           rects.add(
-            selectable.transformRectToGlobal(
-              rect,
-              shiftWithBaseOffset: true,
-            ),
+            selectable.transformRectToGlobal(rect, shiftWithBaseOffset: true),
           );
         }
       }
@@ -627,9 +634,7 @@ class EditorState {
     _observer.close();
   }
 
-  void updateAutoScroller(
-    ScrollableState scrollableState,
-  ) {
+  void updateAutoScroller(ScrollableState scrollableState) {
     if (this.scrollableState != scrollableState) {
       autoScroller?.stopAutoScroll();
       final bool isDesktopOrWeb = PlatformExtension.isDesktopOrWeb;
@@ -643,10 +648,7 @@ class EditorState {
         onScrollViewScrolled: () {
           _notifyScrollViewScrolledListeners();
           if (!isDesktopOrWeb) {
-            final dynamic dragMode = selectionExtraInfo?[_selectionDragModeKey];
-            final bool isDraggingSelection = dragMode != null &&
-                dragMode.toString() != 'MobileSelectionDragMode.none';
-            if (!isDraggingSelection) {
+            if (!isDraggingMobileHandle) {
               return;
             }
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -754,9 +756,7 @@ class EditorState {
               start: selection.start.copyWith(
                 path: selection.start.path.previous,
               ),
-              end: selection.end.copyWith(
-                path: selection.end.path.previous,
-              ),
+              end: selection.end.copyWith(path: selection.end.path.previous),
             );
           }
         }

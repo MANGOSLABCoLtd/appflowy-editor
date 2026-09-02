@@ -43,7 +43,7 @@ class AutoScroller extends EdgeDraggingAutoScroller
     lastDuration = duration;
     lastEdgeOffset = edgeOffset;
     lastDirection = direction;
-    if (direction != null && direction == AxisDirection.up) {
+    if (direction != null) {
       return startAutoScrollIfNecessary(
         offset & Size(1, edgeOffset),
         duration: duration,
@@ -56,10 +56,7 @@ class AutoScroller extends EdgeDraggingAutoScroller
       height: edgeOffset,
     );
 
-    startAutoScrollIfNecessary(
-      dragTarget,
-      duration: duration,
-    );
+    startAutoScrollIfNecessary(dragTarget, duration: duration);
   }
 
   @override

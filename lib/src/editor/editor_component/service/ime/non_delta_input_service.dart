@@ -127,9 +127,35 @@ class NonDeltaTextInputService extends TextInputService with TextInputClient {
         if (!willApply) {
           currentTextEditingValue = oldValue;
           _textInputConnection?.setEditingState(oldValue!);
+          return;
         }
+        _restoreDeletedSentinel();
       },
     );
+  }
+
+  // A backspace at the very start makes the platform delete the leading
+  // sentinel. If that edit does not re-attach a new value (e.g. the only
+  // paragraph is already empty), the platform and this service disagree by one
+  // character until the next keystroke re-attaches and pushes
+  // `setEditingState` — by then the IME is composing, and iOS Korean input
+  // restarts its composition ("값" became "ㄱㅏㅂㅅ"). Restore the sentinel
+  // right away, while nothing is being composed.
+  void _restoreDeletedSentinel() {
+    final value = currentTextEditingValue;
+    if (value == null ||
+        value.text.startsWith(_whitespace) ||
+        !value.selection.isValid ||
+        (value.composing.isValid && !value.composing.isCollapsed)) {
+      return;
+    }
+    final restored = TextEditingValue(
+      text: _whitespace + value.text,
+      selection: value.selection >> _len,
+    );
+    currentTextEditingValue = restored;
+    _textInputConnection?.setEditingState(restored);
+    AppFlowyEditorLog.input.debug('restore deleted sentinel: $restored');
   }
 
   @override

@@ -188,12 +188,31 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
     throw UnimplementedError();
   }
 
+  /// Whether geometry queries on [paragraph] are safe. A missing paragraph is
+  /// treated as ready because callers already handle null. `hasSize` and
+  /// `attached` work in release builds; `debugNeedsLayout` keeps the original
+  /// debug-only protection for paragraphs that are laid out but dirty.
+  bool _isReadyForGeometry(RenderParagraph? paragraph) {
+    if (paragraph == null) {
+      return true;
+    }
+    if (!paragraph.attached || !paragraph.hasSize) {
+      return false;
+    }
+    return !(kDebugMode && paragraph.debugNeedsLayout);
+  }
+
   @override
   Rect? getCursorRectInPosition(
     Position position, {
     bool shiftWithBaseOffset = false,
   }) {
-    if (kDebugMode && _renderParagraph?.debugNeedsLayout == true) {
+    // Selection handles query this from build(), which can run before the
+    // paragraphs are laid out (e.g. an editor rebuilt while the editor state
+    // already holds a selection). `debugNeedsLayout` alone only protects debug
+    // builds, so also require a completed first layout in every build mode.
+    if (!_isReadyForGeometry(_renderParagraph) ||
+        !_isReadyForGeometry(_placeholderRenderParagraph)) {
       return null;
     }
 
@@ -304,7 +323,7 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
     RenderParagraph? paragraph,
   }) {
     paragraph ??= _renderParagraph;
-    if (kDebugMode && paragraph?.debugNeedsLayout == true) {
+    if (!_isReadyForGeometry(paragraph)) {
       return [];
     }
     final textSelection = textSelectionFromEditorSelection(selection);

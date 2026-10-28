@@ -5,6 +5,11 @@ import 'package:appflowy_editor/src/editor/editor_component/service/ime/text_inp
 import 'package:flutter/services.dart';
 
 class DeltaTextInputService extends TextInputService with DeltaTextInputClient {
+  // Flutter 3.47 adds this callback; preserve its default focus behavior.
+  @override
+  // ignore: override_on_non_overriding_member
+  bool onFocusReceived() => false;
+
   DeltaTextInputService({
     required super.onInsert,
     required super.onDelete,

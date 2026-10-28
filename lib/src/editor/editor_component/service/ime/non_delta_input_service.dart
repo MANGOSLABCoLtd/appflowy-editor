@@ -10,6 +10,11 @@ import 'package:flutter/services.dart';
 const String _deleteBackwardSelectorName = 'deleteBackward:';
 
 class NonDeltaTextInputService extends TextInputService with TextInputClient {
+  // Flutter 3.47 adds this callback; preserve its default focus behavior.
+  @override
+  // ignore: override_on_non_overriding_member
+  bool onFocusReceived() => false;
+
   NonDeltaTextInputService({
     required super.onInsert,
     required super.onDelete,

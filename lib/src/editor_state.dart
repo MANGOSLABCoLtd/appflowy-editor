@@ -591,6 +591,10 @@ class EditorState {
     final rects = <Rect>[];
 
     if (selection.isCollapsed && nodes.length == 1) {
+      final renderBox = nodes.first.renderBox;
+      if (renderBox == null || !renderBox.attached || !renderBox.hasSize) {
+        return rects;
+      }
       final selectable = nodes.first.selectable;
       if (selectable != null) {
         final rect = selectable.getCursorRectInPosition(
@@ -605,6 +609,10 @@ class EditorState {
       }
     } else {
       for (final node in nodes) {
+        final renderBox = node.renderBox;
+        if (renderBox == null || !renderBox.attached || !renderBox.hasSize) {
+          continue;
+        }
         final selectable = node.selectable;
         if (selectable == null) {
           continue;
@@ -614,10 +622,6 @@ class EditorState {
           shiftWithBaseOffset: true,
         );
         if (nodeRects.isEmpty) {
-          continue;
-        }
-        final renderBox = node.renderBox;
-        if (renderBox == null) {
           continue;
         }
         for (final rect in nodeRects) {
